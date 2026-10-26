@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#4338CA">
+<title>Sistem Ujian Online</title>
+<script>try{var t=localStorage.getItem('ujian_tema');if(!t&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches)t='dark';if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}</script>
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { theme: { extend: {
+  fontFamily: { sans: ['Nunito', 'system-ui', 'sans-serif'] },
+  colors: { blue: { 50: '#EEF2FF', 100: '#E0E7FF', 200: '#C7D2FE', 300: '#A5B4FC', 400: '#818CF8', 500: '#6366F1', 600: '#4F46E5', 700: '#4338CA', 800: '#3730A3', 900: '#312E81' } } } } };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- Overlay fullscreen (anti-cheat) -->
+<div id="fullscreenOverlay" class="fullscreen-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="fsJudul">
+  <div class="w-20 h-20 rounded-full flex items-center justify-center mb-6" style="background:#4F46E5" id="fsIkon"></div>
+  <h2 id="fsJudul" class="text-3xl font-extrabold mb-3">Mode Ujian Aman</h2>
+  <p class="text-slate-300 mb-6 max-w-md">Ujian dikerjakan dalam layar penuh agar fokus. Tekan tombol di bawah untuk melanjutkan.</p>
+  <button onclick="Exam.resumeFullscreen()" class="btn-amber px-8 text-lg">Masuk Layar Penuh</button>
+  <p class="text-sm text-slate-400 mt-4">Menekan F11 atau ESC akan tercatat sebagai pelanggaran</p>
+</div>
+
+<header class="app-header no-print">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-3 min-w-0">
+      <span id="brandIco" class="icon-btn" aria-hidden="true"></span>
+      <span id="brandName" class="font-display font-extrabold text-lg sm:text-2xl tracking-wide truncate">UJIAN ONLINE</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span id="navUserName" class="text-sm font-bold text-indigo-100 hidden md:inline"></span>
+      <button id="btnTema" class="icon-btn" onclick="App.tema()" aria-label="Ganti mode terang/gelap" title="Mode terang/gelap"></button>
+      <button id="btnKeluar" onclick="App.keluar()" class="hidden icon-btn px-3 w-auto text-sm font-extrabold gap-2" aria-label="Keluar"><span id="keluarIco"></span><span class="hidden sm:inline">Keluar</span></button>
+    </div>
+  </div>
+</header>
+
+<nav id="mainNav" class="hidden bg-white border-b border-slate-200 no-print" aria-label="Menu utama">
+  <div id="navItems" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex gap-1 overflow-x-auto"></div>
+</nav>
+
+<main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+  <!-- Konfigurasi belum lengkap -->
+  <div id="viewConfig" class="hidden max-w-lg mx-auto bg-white rounded-3xl card-shadow p-8 mt-10 text-center">
+    <h2 class="text-2xl font-extrabold text-slate-800">Konfigurasi belum lengkap</h2>
+    <p class="text-slate-600 mt-2">Buka berkas <code class="bg-slate-100 px-1 rounded">js/config.js</code>, isi <b>GAS_URL</b> dengan URL Web App (berakhiran <code>/exec</code>), lalu push ulang ke GitHub.</p>
+  </div>
+
+  <!-- GERBANG: mata pelajaran -> kode akses -> login (diisi js/gate.js) -->
+  <div id="viewLogin" class="hidden"><div id="gate"></div></div>
+
+  <!-- HALAMAN MENU (diisi JS) -->
+  <div id="viewApp" class="hidden"><div id="page"></div></div>
+
+  <!-- RUANG UJIAN -->
+  <div id="viewExam" class="hidden exam-wrap">
+    <div class="exam-top">
+      <div class="flex items-center gap-3 min-w-0">
+        <span id="examMapelIco" class="t-ico" aria-hidden="true"></span>
+        <div class="min-w-0">
+          <p id="examNama" class="font-display font-extrabold text-lg leading-tight truncate"></p>
+          <p id="qBadge" class="text-sm font-bold text-white/90">Soal 1 dari 1</p>
+        </div>
+      </div>
+      <div id="timerBox" class="timer-pill" role="timer" aria-label="Sisa waktu ujian"><span id="timerIco" aria-hidden="true"></span><span id="timerDisplay">00:00:00</span></div>
+    </div>
+    <div class="exam-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="examProgWrap"><i id="examProg"></i></div>
+    <p id="examProgText" class="text-sm font-bold text-slate-600 mt-1"></p>
+
+    <div class="exam-layout">
+      <section class="exam-card" aria-live="polite">
+        <div class="flex items-center justify-between gap-3 mb-4">
+          <span id="qNomor" class="q-num">1</span>
+          <button onclick="Exam.toggleRagu()" id="btnRagu" class="btn-gray"><span id="raguIco"></span><span id="raguText">Tandai Ragu-ragu</span></button>
+        </div>
+        <div id="qBody" class="mb-5"></div>
+        <div id="optionsContainer" class="space-y-3" role="radiogroup" aria-label="Pilihan jawaban"></div>
+        <div class="exam-nav">
+          <button onclick="Exam.prev()" id="btnPrev" class="btn-gray px-5">&larr; Sebelumnya</button>
+          <button onclick="Exam.next()" id="btnNext" class="btn-blue px-6">Selanjutnya &rarr;</button>
+        </div>
+      </section>
+      <aside class="space-y-4">
+        <div class="bg-white rounded-3xl card-shadow p-5">
+          <h2 class="font-extrabold text-slate-800 mb-3 text-lg">Nomor Soal</h2>
+          <div id="qGrid" class="grid grid-cols-5 gap-2 max-h-[260px] overflow-y-auto p-1"></div>
+          <div class="legend"><span><i style="background:#059669"></i>Terjawab</span><span><i style="background:#D97706"></i>Ragu</span><span><i style="background:#E5E7EB"></i>Belum</span></div>
+          <button onclick="Exam.konfirmasiSelesai()" class="btn-green w-full mt-5 text-base">Selesai &amp; Kumpulkan</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</main>
+
+<footer class="py-5 mt-10 text-center text-sm text-slate-500 no-print">
+  &copy; 2026 <span id="footName">Sistem Ujian Online</span> &middot; Belajar dengan semangat!
+</footer>
+
+<div id="modalRoot"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script defer src="js/config.js"></script>
+<script defer src="js/api.js"></script>
+<script defer src="js/gate.js"></script>
+<script defer src="js/app.js"></script>
+<script defer src="js/peserta.js"></script>
+<script defer src="js/admin.js"></script>
+</body>
+</html>
